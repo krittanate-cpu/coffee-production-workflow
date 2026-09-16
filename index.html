@@ -1,0 +1,570 @@
+<title>Coffee Production Workflow</title>
+<style>
+  :root{
+    --bg:#F6F3ED; --panel:#FFFFFF; --ink:#2A211B; --ink2:#6B5D52; --line:#E4DCD0;
+    --accent:#3E7C4F; --accent-ink:#FFFFFF; --accent-soft:#E7F0E9;
+    --warn:#B97514; --warn-soft:#FBF0DC; --crit:#B3402E; --crit-soft:#F9E5E1;
+    --chip:#EFE9DF; --code:#7A4F2B; --rail:#C9BCA9;
+    --shadow:0 1px 2px rgba(42,33,27,.06),0 4px 14px rgba(42,33,27,.05);
+    --shadow-lift:0 2px 6px rgba(42,33,27,.10),0 18px 42px rgba(42,33,27,.14);
+  }
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+    --bg:#211B16; --panel:#2B241E; --ink:#EDE6DC; --ink2:#A99C8D; --line:#3D342C;
+    --accent:#6FAE7F; --accent-ink:#16130F; --accent-soft:#32402F;
+    --warn:#D99A45; --warn-soft:#3E3221; --crit:#D4705C; --crit-soft:#452520;
+    --chip:#3A322A; --code:#CBA36F; --rail:#544839;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);
+    --shadow-lift:0 2px 8px rgba(0,0,0,.4),0 18px 42px rgba(0,0,0,.45);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#211B16; --panel:#2B241E; --ink:#EDE6DC; --ink2:#A99C8D; --line:#3D342C;
+    --accent:#6FAE7F; --accent-ink:#16130F; --accent-soft:#32402F;
+    --warn:#D99A45; --warn-soft:#3E3221; --crit:#D4705C; --crit-soft:#452520;
+    --chip:#3A322A; --code:#CBA36F; --rail:#544839;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);
+    --shadow-lift:0 2px 8px rgba(0,0,0,.4),0 18px 42px rgba(0,0,0,.45);
+  }
+
+  *{box-sizing:border-box;margin:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Sukhumvit Set","Noto Sans Thai","Segoe UI",sans-serif;
+    padding:28px 20px 72px;
+  }
+  code,.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;font-size:.86em;color:var(--code)}
+  .sheet{max-width:1120px;margin:0 auto}
+
+  /* ---------- header ---------- */
+  .hd{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .hd h1{font-size:clamp(23px,3.4vw,31px);letter-spacing:-.015em;text-wrap:balance}
+  .hd .ver{font-size:11.5px;color:var(--ink2);letter-spacing:.08em;text-transform:uppercase}
+  .langs{
+    margin-left:auto;display:inline-flex;border:1px solid var(--line);border-radius:7px;
+    overflow:hidden;background:var(--panel);box-shadow:var(--shadow);
+  }
+  .langs button{
+    font:inherit;font-size:12px;letter-spacing:.05em;padding:5px 13px;border:none;cursor:pointer;
+    background:transparent;color:var(--ink2);
+  }
+  .langs button + button{border-left:1px solid var(--line)}
+  .langs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+  .langs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  .lede{color:var(--ink2);font-size:14px;max-width:66ch;margin:8px 0 6px}
+  .mockbar{
+    display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+    background:var(--warn-soft);border:1px solid var(--line);border-left:3px solid var(--warn);
+    padding:9px 13px;border-radius:0 7px 7px 0;font-size:13px;color:var(--ink2);margin:16px 0 26px;
+  }
+  .mockbar b{color:var(--ink)}
+
+  /* ---------- map ---------- */
+  .maphead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .maphead h2{font-size:16px;letter-spacing:-.01em}
+  .hint{font-size:12.5px;color:var(--ink2)}
+
+  .band{margin-bottom:6px}
+  .band-label{
+    display:flex;align-items:center;gap:9px;font-size:11.5px;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink2);margin:20px 0 9px;
+  }
+  .band-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  .row{display:flex;gap:0;align-items:stretch;flex-wrap:wrap}
+
+  .node{
+    flex:1 1 172px;min-width:0;text-align:left;cursor:pointer;
+    background:var(--panel);border:1px solid var(--line);border-radius:9px;
+    padding:12px 13px 11px;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;gap:6px;
+    font:inherit;color:inherit;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease;
+  }
+  .node:hover,.node:focus-visible{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:var(--accent);outline:none}
+  .node[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft),var(--shadow-lift)}
+  .node .n{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:21px;height:21px;border-radius:6px;background:var(--accent);color:var(--accent-ink);
+    font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;flex:none;
+  }
+  .node.ext .n{background:var(--chip);color:var(--ink2);border:1px solid var(--line)}
+  .node .t{font-size:13.5px;font-weight:600;line-height:1.35;letter-spacing:-.005em}
+  .node .k{font-size:12px;color:var(--ink2);line-height:1.45}
+  .node .sys{font-size:11px;color:var(--code);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-word}
+  .topline{display:flex;align-items:center;gap:8px}
+  .tag{
+    margin-left:auto;font-size:10px;letter-spacing:.04em;padding:2px 6px;border-radius:4px;
+    background:var(--accent-soft);color:var(--accent);white-space:nowrap;
+  }
+  .node.ext .tag{background:var(--chip);color:var(--ink2)}
+
+  .arrow{
+    flex:0 0 auto;width:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;padding:0 2px;color:var(--ink2);
+  }
+  .arrow .glyph{color:var(--rail);font-size:15px;line-height:1}
+  .arrow .lbl{font-size:9.5px;text-align:center;line-height:1.25;color:var(--ink2);word-break:break-word}
+
+  .bar{
+    width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit;
+    background:var(--panel);border:1px solid var(--line);border-radius:9px;
+    padding:12px 14px;box-shadow:var(--shadow);
+    display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+    transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease;
+  }
+  .bar:hover,.bar:focus-visible{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:var(--accent);outline:none}
+  .bar[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft),var(--shadow-lift)}
+  .bar .t{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .bar .n{
+    display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:6px;
+    background:var(--accent);color:var(--accent-ink);font-size:11.5px;font-weight:700;flex:none;
+  }
+  .bar .k{font-size:12px;color:var(--ink2)}
+  .bar .span{
+    margin-left:auto;font-size:10.5px;color:var(--ink2);letter-spacing:.04em;
+    border:1px dashed var(--rail);padding:2px 8px;border-radius:5px;white-space:nowrap;
+  }
+
+  /* ---------- detail panel ---------- */
+  .scrim{
+    position:fixed;inset:0;background:rgba(42,33,27,.32);backdrop-filter:blur(2px);
+    opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:40;
+  }
+  .scrim.on{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;height:100dvh;width:min(520px,94vw);z-index:50;
+    background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow-lift);
+    transform:translateX(102%);transition:transform .22s cubic-bezier(.32,.72,0,1);
+    display:flex;flex-direction:column;
+  }
+  .drawer.on{transform:translateX(0)}
+  .dr-top{display:flex;align-items:flex-start;gap:11px;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+  .dr-top .n{
+    display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;
+    background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;flex:none;margin-top:2px;
+  }
+  .dr-top.ext .n{background:var(--chip);color:var(--ink2);border:1px solid var(--line)}
+  .dr-title{flex:1;min-width:0}
+  .dr-title h3{font-size:17px;letter-spacing:-.01em;line-height:1.3;text-wrap:balance}
+  .dr-title .k{font-size:12.5px;color:var(--ink2);margin-top:3px}
+  .xbtn{
+    flex:none;background:none;border:1px solid var(--line);border-radius:7px;color:var(--ink2);
+    width:28px;height:28px;font-size:15px;line-height:1;cursor:pointer;
+  }
+  .xbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .dr-body{overflow-y:auto;padding:16px 20px 26px;display:flex;flex-direction:column;gap:17px}
+  .dr-nav{display:flex;gap:8px;align-items:center;padding:11px 20px;border-top:1px solid var(--line);font-size:12px;color:var(--ink2)}
+  .dr-nav button{
+    font:inherit;background:var(--chip);border:1px solid var(--line);border-radius:6px;color:var(--ink);
+    padding:4px 11px;cursor:pointer;
+  }
+  .dr-nav button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  .dr-nav button:disabled{opacity:.4;cursor:default}
+  .dr-nav .kbd{margin-left:auto;font-size:11px}
+
+  .sec h4{
+    font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);
+    margin-bottom:7px;display:flex;align-items:center;gap:8px;
+  }
+  .sec h4::after{content:"";flex:1;height:1px;background:var(--line)}
+  .pass{
+    background:var(--accent-soft);border-left:3px solid var(--accent);border-radius:0 7px 7px 0;
+    padding:10px 13px;font-size:13.5px;line-height:1.55;
+  }
+  ol.topics{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+  ol.topics li{display:flex;gap:9px;font-size:13.5px;line-height:1.5;padding:5px 0;border-bottom:1px dashed var(--line)}
+  ol.topics li:last-child{border-bottom:none}
+  ol.topics .ix{color:var(--ink2);font-variant-numeric:tabular-nums;font-size:12px;flex:none;min-width:26px}
+  .task{font-size:13.5px;line-height:1.55}
+  .task .meta{color:var(--ink2);font-size:12.5px;margin-top:4px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chips span{
+    background:var(--chip);border:1px solid var(--line);border-radius:5px;
+    padding:3px 8px;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--code);
+  }
+  .flowpair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .flowpair div{border:1px solid var(--line);border-radius:7px;padding:9px 11px;font-size:12.5px;line-height:1.45}
+  .flowpair .lb{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+  .srcfile{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--code);
+    background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:7px 10px;word-break:break-all;
+  }
+  .extnote{
+    background:var(--warn-soft);border-left:3px solid var(--warn);border-radius:0 7px 7px 0;
+    padding:10px 13px;font-size:13px;line-height:1.55;
+  }
+
+  @media (max-width:760px){
+    .arrow{width:100%;flex-direction:row;gap:7px;padding:7px 0}
+    .arrow .glyph{transform:rotate(90deg)}
+    .arrow .lbl{text-align:left}
+    .node{flex:1 1 100%}
+    .flowpair{grid-template-columns:1fr}
+    .drawer{width:100vw}
+    .langs{margin-left:0}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="sheet">
+  <header>
+    <div class="hd">
+      <h1>Coffee Production Workflow</h1>
+      <span class="ver" id="ver">10 modules · Sep 2026</span>
+      <div class="langs" role="group" aria-label="Language">
+        <button id="btn-th" aria-pressed="true">ไทย</button>
+        <button id="btn-en" aria-pressed="false">EN</button>
+      </div>
+    </div>
+    <p class="lede" id="lede"></p>
+    <div class="mockbar"><b id="mock-b"></b><span id="mock-s"></span></div>
+  </header>
+
+  <div class="maphead">
+    <h2 id="map-h"></h2>
+    <span class="hint" id="map-hint"></span>
+  </div>
+
+  <div class="band">
+    <div class="band-label" id="bl-0"></div>
+    <button class="bar" data-m="1">
+      <span class="t"><span class="n">1</span><span data-f="t"></span></span>
+      <span class="k" data-f="k"></span>
+      <span class="span" data-f="span"></span>
+    </button>
+  </div>
+
+  <div class="band"><div class="band-label" id="bl-1"></div><div class="row" id="row-pre"></div></div>
+  <div class="band"><div class="band-label" id="bl-2"></div><div class="row" id="row-roast"></div></div>
+  <div class="band"><div class="band-label" id="bl-3"></div><div class="row" id="row-post"></div></div>
+
+  <div class="band">
+    <div class="band-label" id="bl-4"></div>
+    <button class="bar" data-m="10">
+      <span class="t"><span class="n">10</span><span data-f="t"></span></span>
+      <span class="k" data-f="k"></span>
+      <span class="span" data-f="span"></span>
+    </button>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dr-h">
+  <div class="dr-top" id="dr-top">
+    <span class="n" id="dr-n">2</span>
+    <div class="dr-title"><h3 id="dr-h">—</h3><div class="k" id="dr-k">—</div></div>
+    <button class="xbtn" id="dr-x" aria-label="Close">✕</button>
+  </div>
+  <div class="dr-body" id="dr-body"></div>
+  <div class="dr-nav">
+    <button id="prev"></button><button id="next"></button><span class="kbd" id="kbd"></span>
+  </div>
+</aside>
+
+<script>
+const UI = {
+  th:{
+    ver:"10 โมดูล · ก.ย. 2026",
+    lede:"เห็นทั้งสายในหน้าเดียวว่าโมดูลไหนป้อนอะไรให้โมดูลไหน แล้วคลิกเข้าไปดูรายละเอียดของโมดูลนั้นได้โดยไม่ต้องเปลี่ยนหน้า",
+    mockB:"เอกสารประกอบ",
+    mockS:"หน้านี้เป็นแผนที่ระดับภาพรวม เนื้อหาสอนฉบับเต็มอยู่ในไฟล์หลักสูตรแต่ละโมดูล ชื่อไฟล์แสดงไว้ท้าย panel ของแต่ละโมดูล",
+    mapH:"ทั้งเส้น ตั้งแต่ order เข้าจนของขึ้นรถ",
+    mapHint:"คลิกโมดูลเพื่อดูรายละเอียด · Esc ปิด · ← → เลื่อนโมดูล",
+    bands:["Orientation · คร่อมทั้งเส้น","ช่วงที่ 1 · ก่อนคั่ว","ช่วงที่ 2 · คั่วและแพ็ค","ช่วงที่ 3 · หลังคั่ว","วนกลับเข้าทั้งเส้น"],
+    secPass:"เกณฑ์ผ่านโมดูลนี้", secTopics:"หัวข้อในโมดูล", secTask:"งานลงมือจริง",
+    secSys:"ระบบ / ไฟล์ที่ต้องเปิดจริง", secPos:"ตำแหน่งในสาย", secFile:"ฉบับเต็ม",
+    from:"รับมาจาก", to:"ส่งต่อไป",
+    qMeta:n => "+ คำถาม Socratic " + n + " ข้อ ตอบก่อนลงมือ",
+    prev:"← ก่อนหน้า", next:"ถัดไป →", kbd:"Esc = ปิด", modLabel:"Module"
+  },
+  en:{
+    ver:"10 modules · Sep 2026",
+    lede:"See the whole line on one page, which module feeds what into which, then click into any module for its detail without leaving the page.",
+    mockB:"Companion map.",
+    mockS:"This page is the overview map. The full teaching text lives in the module files, named at the bottom of each module panel.",
+    mapH:"The full line, from order in to goods on the truck",
+    mapHint:"Click a module for detail · Esc to close · ← → to move between modules",
+    bands:["Orientation · spans the line","Stage 1 · Before roasting","Stage 2 · Roast and pack","Stage 3 · After roasting","Feeds back into the line"],
+    secPass:"How you pass this module", secTopics:"What the module covers", secTask:"Hands-on task",
+    secSys:"Systems / files to open", secPos:"Position in the line", secFile:"Full write-up",
+    from:"Receives from", to:"Hands off to",
+    qMeta:n => "+ " + n + " Socratic questions, answered before you start",
+    prev:"← Previous", next:"Next →", kbd:"Esc = close", modLabel:"Module"
+  }
+};
+
+const M = {
+  1:{status:{th:"เขียนแล้ว",en:"Written"},
+     file:"projects/production-curriculum/module-01-overview.md",
+     sys:["roastery-ops.md","SOP-team-daily.md","SOP-daily-order-to-plan.md"], q:3,
+     th:{t:"ภาพรวม Production Flow",k:"เห็นเส้นทางเต็มก่อนลงรายละเอียด",span:"ครอบโมดูล 2–10",
+       pass:"เดิน order จริง 1 ใบตามสายตั้งแต่เข้าระบบเช้าจนขึ้นรถได้เอง ระบุถูกว่าแต่ละช่วงอยู่ที่ไหน ใครถือ ระบบไหนบันทึก และแยกออกว่าอันไหนงาน SR อันไหนงาน NTB",
+       topics:["ทำไมโมดูลนี้ต้องมาก่อน","เส้นทางเต็มของกาแฟ 1 order","2 site คนละบทบาท ไม่ใช่สำรองกัน","กำลังการผลิตเทียบกับที่ใช้จริง","3 หน้าที่ของทีมตาม SOP รอบเช้า","Single source of truth คืออะไร ทำไมสำคัญ","3 คอขวดที่ต้องคุ้นชื่อ","อาการที่เห็นตอนยังไม่คุ้นสาย"],
+       task:"เดินสาย order 1 ใบ จากเช้าจนขึ้นรถ (1 วัน)",from:"จุดตั้งต้นของหลักสูตร",to:"ทุกโมดูลถัดไป"},
+     en:{t:"Production Flow Overview",k:"See the whole line before the details",span:"spans modules 2–10",
+       pass:"Walk one real order down the line on your own, from morning intake to the truck. Say where each stage happens, who owns it, which system records it, and tell SR work apart from NTB work.",
+       topics:["Why this module comes first","The full path of one order","Two sites with different jobs, not backups for each other","Capacity on paper against what we actually use","The team's three duties in the morning round","What a single source of truth is and why it matters","The three bottlenecks you need to know by name","What it looks like when you don't know the line yet"],
+       task:"Walk one order from morning to dispatch (1 day)",from:"Start of the curriculum",to:"Every module that follows"}},
+
+  2:{status:{th:"เขียนแล้ว",en:"Written"},
+     file:"projects/production-curriculum/module-02-order-intake.md",
+     sys:["ERP connectors","fact_order","Import Hub"], q:3,
+     th:{t:"Order Intake & Consolidation",k:"ทำไมต้องรวม order ก่อนคำนวณแผน",
+       pass:"ทำรอบเช้าได้เองคนเดียว รู้ว่าอะไรพังได้ตรงไหน และเคลียร์ SKU ที่ระบบไม่รู้จักได้โดยไม่เดา",
+       topics:["ทำไมขั้นนี้สำคัญเกินกว่าที่หน้าตางานบอก","4 ช่องทาง กับระดับความอัตโนมัติที่ต่างกัน","รอบเช้าทีละขั้น","ที่เก็บข้อมูลมี 2 ที่ อย่าสับสน","SKU ที่ระบบไม่รู้จัก คือหัวใจของโมดูลนี้","order ที่เป็นเบลนด์ต้องผูกกับสูตรก่อน","ความผิดพลาดที่เกิดจริงและอาการที่เห็น"],
+       task:"ตามรอบเช้า 1 วัน (สังเกต) แล้วทำเองในวันถัดไป",from:"OrderEzy / Shopify / Internal PO / FOH",to:"Module 3 — fact_order เข้าตัวคำนวณแผน"},
+     en:{t:"Order Intake & Consolidation",k:"Why orders are consolidated before the plan is calculated",
+       pass:"Run the morning round alone, know what can break and where, and clear SKUs the system does not recognise without guessing.",
+       topics:["Why this step matters more than the job looks","Four channels at four different levels of automation","The morning round, step by step","Data sits in two places, don't confuse them","SKUs the system doesn't recognise are the heart of this module","Blend orders have to be tied to a recipe first","Mistakes that actually happened and how they show up"],
+       task:"Shadow the morning round for a day, then run it yourself",from:"OrderEzy / Shopify / Internal PO / FOH",to:"Module 3 — fact_order feeds the plan"}},
+
+  3:{status:{th:"เขียนแล้ว",en:"Written"},
+     file:"projects/production-curriculum/module-03-scheduling.md",
+     sys:["computeRoastPlan","morning automation","Mini-MRP"], q:3,
+     th:{t:"Production Scheduling",k:"ตอนนี้ roast-to-order · roast-to-par คือเป้า Phase 2",
+       pass:"อ่านแผนคั่วใน Chat แล้วบอกได้ว่าเลขแต่ละตัวมาจากไหน ตรวจได้เองว่า order ใบไหนเข้าแผนหรือถูกข้ามเพราะอะไร และรู้ว่าเมื่อไหร่ต้องหยุดถามก่อนคั่ว",
+       topics:["แผนคั่ววันนี้มาจากไหน (ของจริง ณ Phase 1)","หน้าต่างวางแผนกี่วัน","order ไหนเข้าแผน ไหนถูกข้าม","roast-to-par คือเป้าหมาย ยังไม่ใช่ของที่รันอยู่","แผนคั่วแปลงเป็น green ยังไง (Mini-MRP)","quota flag อ่านยังไงไม่ให้เข้าใจผิด","รอบเช้าอัตโนมัติ กับ รันมือ ได้ผลไม่เท่ากัน","ใครคั่วที่ไหน หัวหน้าโรงคั่วเป็นคนตัดสิน","อาการที่เห็น → ไปดูอะไร → แก้ที่ไหน"],
+       task:"ตรวจแผนย้อนกลับ 1 วัน (ประมาณ 1 ชั่วโมง)",from:"Module 2 — fact_order",to:"Module 4 (green requirement) · Module 6 (แผนคั่ว)"},
+     en:{t:"Production Scheduling",k:"Roast-to-order today, roast-to-par is the Phase 2 target",
+       pass:"Read the roast plan in Chat and say where every number came from, check for yourself why an order entered the plan or was skipped, and know when to stop and ask before roasting.",
+       topics:["Where today's roast plan comes from (as it really runs in Phase 1)","How many days the planning window covers","Which orders enter the plan and which are skipped","Roast-to-par is the goal, not what runs today","How the roast plan converts into green demand (Mini-MRP)","Reading the quota flag without misreading it","The automated morning run and a manual run do not give the same result","Who roasts where is the roastery lead's call","Symptom → where to look → where to fix"],
+       task:"Reverse-check one day's plan (about 1 hour)",from:"Module 2 — fact_order",to:"Module 4 (green demand) · Module 6 (roast plan)"}},
+
+  4:{status:{th:"เขียนแล้ว",en:"Written"},
+     file:"projects/production-curriculum/module-04-green-receiving.md",
+     sys:["roastery-ops.md","Mini-MRP green requirement","quota flag"], q:3,
+     th:{t:"Green Bean Receiving & Storage",k:"origin, quota, ข้อจำกัดพื้นที่",
+       pass:"รับ green เข้าคลังได้ครบขั้นและ log ถูก location แยกออกว่า origin ไหนเป็นฐานหลัก origin ไหนเป็นจุดบอดที่ระบบไม่เตือน และหา headroom ของ origin เองได้จากแหล่งที่ถูก",
+       topics:["origin ที่ใช้จริง แบ่งเป็น 3 กลุ่ม","โควตาคืออะไร","ยอดใช้จริงอยู่คนละที่ อย่าเอามาปนกัน","ระบบเช็คโควตาให้แค่ไหน และจุดบอดอยู่ตรงไหน","ชื่อที่คนเรียก กับรหัสในระบบ ไม่เหมือนกัน","รับ green เข้าคลัง ทำอะไรบ้าง","พื้นที่เก็บที่ SR เป็นข้อจำกัดจริง","อาการที่เห็น → สาเหตุ → ไปดูอะไร → แก้ที่ไหน"],
+       task:"คำนวณ headroom ที่ไม่มีระบบตอบให้ (ประมาณ 45 นาที)",from:"Module 3 — green requirement",to:"Module 5 — log เข้า location"},
+     en:{t:"Green Bean Receiving & Storage",k:"Origins, quota, and the real space limit",
+       pass:"Receive green into the warehouse correctly and log it to the right location, tell which origins are the base and which are blind spots the system won't flag, and work out an origin's remaining headroom yourself from the right source.",
+       topics:["The origins actually in use, in three groups","What quota means","Actual usage lives somewhere else, don't mix the two","How far the system checks quota, and where the blind spots are","The name people use and the code in the system are not the same","What receiving green into the warehouse involves","Storage space at SR is a real constraint","Symptom → cause → where to look → where to fix"],
+       task:"Work out the headroom no system will give you (about 45 min)",from:"Module 3 — green demand",to:"Module 5 — logged to a location"}},
+
+  5:{status:{th:"เขียนแล้ว",en:"Written"},
+     file:"projects/production-curriculum/module-05-inventory.md",
+     sys:["AppSheet Inventory","Inventory Transaction","Reorder_Point"], q:3,
+     th:{t:"Inventory Management (AppSheet)",k:"นับทุกอย่าง ไม่เฉพาะ green",
+       pass:"นับของหนึ่งห้องแล้วอธิบาย Diff ทุกแถวที่ไม่เป็นศูนย์ได้ด้วยหลักฐานจาก Inventory Transaction และคำนวณจุดสั่งซื้อเองได้ พร้อมบอกได้ว่าถึงจุดสั่งแล้วยังต้องพิจารณาอะไรต่อ",
+       topics:["ระบบนี้นับอะไร ไม่เฉพาะกาแฟ","โครงชีต tab ไหนมีของจริง tab ไหนว่าง","ทำไมทุก item ต้องมี Code และ QR","5 location สำคัญกว่ายอดรวม","บันทึกตอนของเคลื่อน ไม่ใช่ตอนสิ้นวัน","Reorder Point เป็นไกด์ ไม่ใช่คำสั่ง","ระบบ ERP อ่านชีตนี้ยังไง และจุดที่พังเงียบ","อาการที่เห็น → สาเหตุ → ไปดูอะไร → แก้ที่ไหน"],
+       task:"Cycle count หนึ่งห้อง แล้วไล่หาสาเหตุของ Diff (ประมาณ 1 ชั่วโมง)",from:"Module 4 — ของรับเข้า",to:"Module 6 (green พอไหม) · Module 7 (วัสดุแพ็ค)"},
+     en:{t:"Inventory Management (AppSheet)",k:"It counts everything, not only green",
+       pass:"Count one room, then explain every non-zero Diff with evidence from Inventory Transaction, and calculate a reorder point yourself, including what still takes judgement once that point is hit.",
+       topics:["What this system counts, and it is not only coffee","Which sheet tabs hold real data and which are empty","Why every item needs a Code and a QR","The five locations matter more than the total","Log when stock moves, not at end of day","Reorder Point is a guide, not an order","How the ERP reads this sheet, and where it fails silently","Symptom → cause → where to look → where to fix"],
+       task:"Cycle count one room and trace every Diff (about 1 hour)",from:"Module 4 — goods received",to:"Module 6 (enough green?) · Module 7 (packaging)"}},
+
+  6:{status:{th:"ใช้ของเดิม",en:"Existing doc"},ext:true,
+     file:"projects/roasting-log-improvement/roasting-curriculum.md",
+     sys:["Stronghold S7X / S9X","Roast Log"], q:null,
+     th:{t:"Roasting Execution",k:"ใช้หลักสูตร Stronghold เดิม 8 โมดูล",
+       extnote:"โมดูลนี้ไม่เขียนใหม่ ใช้หลักสูตรสอนคั่ว Stronghold S7X / S9X ที่มีอยู่แล้ว 8 โมดูล พร้อม check-off ของตัวเอง",
+       pass:"ตามเกณฑ์ผ่านของหลักสูตร Stronghold แต่ละโมดูล (มี check-off แยกอยู่แล้ว)",
+       topics:["3 แหล่งความร้อน + 2 ค่าบนจอ","ฟิสิกส์ของเมล็ด","เคมี browning","เฟส + first crack","อ่าน RoR","Profile building","Roast Defects (WCRC 2026)","Cupping feedback loop"],
+       task:"งานลงมือจริงอยู่ในหลักสูตร Stronghold แต่ละโมดูล",from:"Module 3 (แผนคั่ว) · Module 5 (green)",to:"Module 7 (กาแฟคั่ว) · Module 8 (Roast Log)"},
+     en:{t:"Roasting Execution",k:"Uses the existing Stronghold curriculum, 8 modules",
+       extnote:"This module is not rewritten. It uses the existing Stronghold S7X / S9X roasting curriculum, 8 modules with its own check-off.",
+       pass:"Follow the pass criteria of each Stronghold module (they carry their own check-off)",
+       topics:["Three heat sources and two numbers on the screen","Bean physics","Browning chemistry","Phases and first crack","Reading RoR","Profile building","Roast defects (WCRC 2026)","Cupping feedback loop"],
+       task:"The hands-on work sits inside each Stronghold module",from:"Module 3 (roast plan) · Module 5 (green)",to:"Module 7 (roasted coffee) · Module 8 (Roast Log)"}},
+
+  7:{status:{th:"เขียนแล้ว",en:"Written"},
+     file:"projects/production-curriculum/module-07-packing.md",
+     sys:["weight & fill","Pack Verify","Picking Slip"], q:3,
+     th:{t:"Packing",k:"ตรวจน้ำหนัก/ชนิดก่อนปิดถุง",
+       pass:"เดิน order หนึ่งใบผ่าน flow แพ็คได้เองครบทุกขั้น ส่งต่อถูกคน และบอกได้ว่าแต่ละจุดตรวจดักอะไร ดักอะไรไม่ได้",
+       topics:["Flow ของการแพ็ค 1 order","อุปกรณ์ใช้ตรงไหนของ flow","จุดตรวจอยู่ตรงไหน และกฎ 4 ข้อที่ค้ำ flow ไว้","ความผิดพลาด 2 แบบ เกิดคนละขั้นของ flow","Pack Verify เสียบเข้า flow ตรงไหน","มันตรวจอะไร และตัดสินยังไง","ข้อจำกัดที่ต้องรู้ก่อนเชื่อผล","ของที่เบิกใช้ต้องหักออกจาก inventory","อาการที่เห็น → สาเหตุ → ไปดูอะไร → แก้ที่ไหน"],
+       task:"เดิน flow เองครบ 1 order",from:"Module 6 (กาแฟคั่ว) · Module 5 (วัสดุ)",to:"Module 8 (ตรวจ) · Module 9 (staging)"},
+     en:{t:"Packing",k:"Check weight and product before the bag is sealed",
+       pass:"Walk one order through the packing flow yourself, hand it to the right person, and say what each checkpoint catches and what it cannot.",
+       topics:["The packing flow for one order","Where each piece of equipment sits in the flow","Where the checkpoints are, and the four rules holding the flow up","Two kinds of mistake, made at different steps","Where Pack Verify plugs into the flow","What it checks and how it decides","Limits to know before you trust the result","What gets used has to come off inventory","Symptom → cause → where to look → where to fix"],
+       task:"Walk the full flow yourself for one order",from:"Module 6 (roasted coffee) · Module 5 (materials)",to:"Module 8 (checks) · Module 9 (staging)"}},
+
+  8:{status:{th:"เขียนแล้ว",en:"Written"},
+     file:"projects/production-curriculum/module-08-qc.md",
+     sys:["Roast Log","QC Flag","Cupping App","Agtron"], q:3,
+     th:{t:"Quality Control",k:"2 ชั้น: ทุกแบทช์ + รอบ cupping",
+       pass:"กรอก Roast Log ได้ครบและอ่าน QC Flag เป็น แยกออกว่าธงเขียวรับประกันอะไรและไม่รับประกันอะไร ตรวจ Agtron ด้วยมือได้เอง และเข้าร่วม cupping แล้วย้อนกลับไปหาแบทช์ต้นเหตุได้",
+       topics:["Flow ของ QC มี 2 ชั้น เดินคนละจังหวะ","ชั้นที่ 1 — Roast Log คำนวณอะไรให้บ้าง","QC Flag จับอะไร และจับอะไรไม่ได้","Agtron ±3 บอกอะไร","ชั้นที่ 2 — Cupping รอบอังคารและศุกร์","ปิด loop กลับไปที่ปุ่มบนเครื่อง","Sign-off ก่อนของออกจาก QC","อาการที่เห็น → สาเหตุ → ไปดูอะไร → แก้ที่ไหน"],
+       task:"เดินชั้นที่ 1 ครบ 5 แบทช์ แล้วเข้า cupping 1 รอบ",from:"Module 6 (Roast Log) · Module 7 (ของที่แพ็ค)",to:"Module 9 — sign-off ก่อนปล่อยของ"},
+     en:{t:"Quality Control",k:"Two layers: every batch, plus the cupping rounds",
+       pass:"Fill in the Roast Log completely and read the QC Flag properly, tell what a green flag does and does not guarantee, check Agtron by hand, and join a cupping and trace a cup back to the batch behind it.",
+       topics:["QC runs in two layers, on different rhythms","Layer one — what the Roast Log calculates for you","What the QC Flag catches and what it cannot","What Agtron ±3 tells you","Layer two — cupping on Tuesdays and Fridays","Closing the loop back to the buttons on the machine","Sign-off before coffee leaves QC","Symptom → cause → where to look → where to fix"],
+       task:"Run layer one for five batches, then join one cupping",from:"Module 6 (Roast Log) · Module 7 (packed goods)",to:"Module 9 — sign-off before release"}},
+
+  9:{status:{th:"ใช้ของเดิม",en:"Existing doc"},ext:true,
+     file:"projects/master-sop/order-fulfilment-sop.md",
+     sys:["Picking Slip","three-way match","Master SOP 01"], q:null,
+     th:{t:"Order Fulfilment & Dispatch",k:"ใช้ Master SOP 01 เดิม",
+       extnote:"โมดูลนี้ไม่เขียนใหม่ ใช้ Master SOP 01 — Order Fulfilment ที่ประกาศใช้แล้ว ต่างกันที่ SOP บอกวิธีทำ หลักสูตรบอกทำไมต้องทำแบบนั้น",
+       pass:"ทำครบ 6 ขั้นของ flow ตาม SOP 01 ได้เอง และตอบได้ว่า KPI แต่ละตัววัดอะไร",
+       topics:["ขอบเขต","หลักการออกแบบ (ทำไม SOP ถึงหน้าตาแบบนี้)","Pick","Check (จุดกันพลาดหลัก)","Pack + Label","Staging + เอกสาร","Dispatch (16:00–18:00 ตามรอบจัดส่ง)","ข้อกำหนดเฉพาะช่องทาง","KPI","เมื่อเกิด Error หลุดถึงลูกค้า"],
+       task:"งานลงมือจริงอยู่ในแผนนำไปใช้ 4 สัปดาห์ของ SOP 01",from:"Module 7 (ของแพ็คเสร็จ) · Module 8 (sign-off)",to:"Module 10 — KPI และจุดติดขัด"},
+     en:{t:"Order Fulfilment & Dispatch",k:"Uses the existing Master SOP 01",
+       extnote:"This module is not rewritten. It uses Master SOP 01 — Order Fulfilment, already in force. The difference: the SOP tells you how, the curriculum tells you why it is built that way.",
+       pass:"Run all six steps of the SOP 01 flow yourself, and say what each KPI measures",
+       topics:["Scope","Design principles (why the SOP looks like this)","Pick","Check (the main error trap)","Pack + Label","Staging + paperwork","Dispatch (16:00–18:00, delivery rounds)","Channel-specific requirements","KPIs","When an error reaches the customer"],
+       task:"The hands-on work sits in the SOP 01 four-week rollout plan",from:"Module 7 (packed goods) · Module 8 (sign-off)",to:"Module 10 — KPIs and friction points"}},
+
+  10:{status:{th:"เขียนแล้ว",en:"Written"},
+     file:"projects/production-curriculum/module-10-bottleneck.md",
+     sys:["ทั้งเส้น / whole line"], q:3,
+     th:{t:"Bottleneck & Continuous Improvement",k:"แยกคอขวด 3 ประเภท: Data / Process / ทรัพยากรจำกัด",span:"ป้อนกลับ → 2–9",
+       pass:"เจอจุดติดขัดใหม่แล้วจำแนกประเภทได้ถูก ส่งต่อถึงคนที่แก้ได้ด้วยข้อมูลที่พอใช้ตัดสิน และแยกออกว่าเรื่องไหนรอระบบได้ เรื่องไหนต้องบริหารเอง",
+       topics:["Flow ของการแก้ปัญหา","จำแนกคอขวดเป็น 3 ประเภท","คลังคอขวดจริงทั้งเส้น (ตรวจ ก.ย. 2026)","จุดที่เงียบ อันตรายกว่าจุดที่ดัง","คอขวดที่ระบบแก้ให้ไม่ได้ ทำยังไง","รายงานยังไงให้ถึงคนที่แก้ได้","อาการที่เห็น → สาเหตุ → ไปดูอะไร → แก้ที่ไหน"],
+       task:"รวบรวมของตัวเองจาก Module 1–8 แล้วจัดประเภท",from:"ทุกโมดูล",to:"ป้อนกลับเข้า Module 2–9"},
+     en:{t:"Bottleneck & Continuous Improvement",k:"Sort bottlenecks into three types: Data / Process / Fixed resource",span:"feeds back → 2–9",
+       pass:"Classify a new friction point correctly, pass it to whoever can fix it with enough data to decide, and tell which ones can wait for the system and which you have to manage yourself.",
+       topics:["The flow for working a problem","Three types of bottleneck","The real bottleneck inventory across the line (audited Sep 2026)","The quiet ones are more dangerous than the loud ones","Bottlenecks the system cannot fix for you","How to report so it reaches someone who can fix it","Symptom → cause → where to look → where to fix"],
+       task:"Collect your own findings from Modules 1–8 and classify them",from:"Every module",to:"Feeds back into Modules 2–9"}}
+};
+
+const EDGE = {
+  fact:{th:"fact_order",en:"fact_order"},
+  green:{th:"green requirement",en:"green demand"},
+  loc:{th:"log เข้า location",en:"logged to location"},
+  roasted:{th:"กาแฟคั่ว + Roast Log",en:"roasted coffee + Roast Log"},
+  packed:{th:"ของที่แพ็ค",en:"packed goods"},
+  kpi:{th:"KPI + จุดติดขัด",en:"KPIs + friction"}
+};
+const ROWS = {
+  "row-pre":  [[2,"fact"],[3,"green"],[4,"loc"],[5,null]],
+  "row-roast":[[6,"roasted"],[7,"packed"],[8,null]],
+  "row-post": [[9,"kpi"]]
+};
+const ORDER = [1,2,3,4,5,6,7,8,9,10];
+
+let lang = "th";
+try { const s = localStorage.getItem("cpw-lang"); if (s === "en" || s === "th") lang = s; } catch (e) {}
+
+const drawer = document.getElementById("drawer");
+const scrim  = document.getElementById("scrim");
+const body   = document.getElementById("dr-body");
+let cur = null, lastFocus = null;
+
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+
+function buildRows(){
+  for (const [rowId, items] of Object.entries(ROWS)) {
+    const row = document.getElementById(rowId);
+    row.innerHTML = "";
+    items.forEach(([id, edge]) => {
+      const m = M[id], L = m[lang];
+      const b = document.createElement("button");
+      b.className = "node" + (m.ext ? " ext" : "");
+      b.dataset.m = id;
+      b.innerHTML =
+        '<span class="topline"><span class="n">' + id + '</span><span class="tag">' + esc(m.status[lang]) + '</span></span>' +
+        '<span class="t">' + esc(L.t) + '</span>' +
+        '<span class="k">' + esc(L.k) + '</span>' +
+        '<span class="sys">' + esc(m.sys.slice(0,2).join(" · ")) + '</span>';
+      row.appendChild(b);
+      if (edge) {
+        const a = document.createElement("div");
+        a.className = "arrow";
+        a.innerHTML = '<span class="glyph">→</span><span class="lbl">' + esc(EDGE[edge][lang]) + '</span>';
+        row.appendChild(a);
+      }
+    });
+  }
+}
+
+function paintChrome(){
+  const u = UI[lang];
+  document.documentElement.lang = lang;
+  document.getElementById("ver").textContent = u.ver;
+  document.getElementById("lede").textContent = u.lede;
+  document.getElementById("mock-b").textContent = u.mockB;
+  document.getElementById("mock-s").textContent = u.mockS;
+  document.getElementById("map-h").textContent = u.mapH;
+  document.getElementById("map-hint").textContent = u.mapHint;
+  u.bands.forEach((b,i) => document.getElementById("bl-" + i).textContent = b);
+  document.getElementById("prev").textContent = u.prev;
+  document.getElementById("next").textContent = u.next;
+  document.getElementById("kbd").textContent = u.kbd;
+  document.getElementById("btn-th").setAttribute("aria-pressed", String(lang === "th"));
+  document.getElementById("btn-en").setAttribute("aria-pressed", String(lang === "en"));
+  document.querySelectorAll(".bar").forEach(bar => {
+    const L = M[Number(bar.dataset.m)][lang];
+    bar.querySelector('[data-f="t"]').textContent = L.t;
+    bar.querySelector('[data-f="k"]').textContent = L.k;
+    bar.querySelector('[data-f="span"]').textContent = L.span;
+  });
+}
+
+function render(id){
+  const m = M[id], L = m[lang], u = UI[lang];
+  cur = id;
+  document.getElementById("dr-n").textContent = id;
+  document.getElementById("dr-top").classList.toggle("ext", !!m.ext);
+  document.getElementById("dr-h").textContent = u.modLabel + " " + id + " — " + L.t;
+  document.getElementById("dr-k").textContent = L.k;
+
+  let html = "";
+  if (L.extnote) html += '<div class="extnote">' + esc(L.extnote) + '</div>';
+  html += '<div class="sec"><h4>' + u.secPass + '</h4><div class="pass">' + esc(L.pass) + '</div></div>';
+  html += '<div class="sec"><h4>' + u.secTopics + '</h4><ol class="topics">' +
+    L.topics.map((t,i) => '<li><span class="ix">' + (m.ext ? (i+1) + "." : id + "." + (i+1)) + '</span><span>' + esc(t) + '</span></li>').join("") +
+    '</ol></div>';
+  html += '<div class="sec"><h4>' + u.secTask + '</h4><div class="task">' + esc(L.task) +
+    (m.q ? '<div class="meta">' + esc(u.qMeta(m.q)) + '</div>' : '') + '</div></div>';
+  html += '<div class="sec"><h4>' + u.secSys + '</h4><div class="chips">' +
+    m.sys.map(s => '<span>' + esc(s) + '</span>').join("") + '</div></div>';
+  html += '<div class="sec"><h4>' + u.secPos + '</h4><div class="flowpair">' +
+    '<div><div class="lb">' + u.from + '</div>' + esc(L.from) + '</div>' +
+    '<div><div class="lb">' + u.to + '</div>' + esc(L.to) + '</div></div></div>';
+  html += '<div class="sec"><h4>' + u.secFile + '</h4><div class="srcfile">' + esc(m.file) + '</div></div>';
+  body.innerHTML = html;
+  body.scrollTop = 0;
+
+  const i = ORDER.indexOf(id);
+  document.getElementById("prev").disabled = i === 0;
+  document.getElementById("next").disabled = i === ORDER.length - 1;
+  document.querySelectorAll("[data-m]").forEach(el =>
+    el.setAttribute("aria-current", String(Number(el.dataset.m) === id)));
+}
+
+function openM(id){
+  lastFocus = document.activeElement;
+  render(id);
+  drawer.classList.add("on");
+  scrim.classList.add("on");
+  document.getElementById("dr-x").focus();
+}
+function closeM(){
+  drawer.classList.remove("on");
+  scrim.classList.remove("on");
+  document.querySelectorAll("[data-m]").forEach(el => el.setAttribute("aria-current","false"));
+  if (lastFocus) lastFocus.focus();
+  cur = null;
+}
+function step(d){
+  const i = ORDER.indexOf(cur);
+  if (i + d >= 0 && i + d < ORDER.length) render(ORDER[i + d]);
+}
+function setLang(next){
+  lang = next;
+  try { localStorage.setItem("cpw-lang", lang); } catch (e) {}
+  buildRows();
+  paintChrome();
+  if (cur !== null) render(cur);
+}
+
+document.getElementById("btn-th").addEventListener("click", () => setLang("th"));
+document.getElementById("btn-en").addEventListener("click", () => setLang("en"));
+document.addEventListener("click", e => {
+  const hit = e.target.closest("[data-m]");
+  if (hit) openM(Number(hit.dataset.m));
+});
+document.getElementById("dr-x").addEventListener("click", closeM);
+scrim.addEventListener("click", closeM);
+document.getElementById("prev").addEventListener("click", () => step(-1));
+document.getElementById("next").addEventListener("click", () => step(1));
+document.addEventListener("keydown", e => {
+  if (cur === null) return;
+  if (e.key === "Escape") closeM();
+  if (e.key === "ArrowLeft") step(-1);
+  if (e.key === "ArrowRight") step(1);
+});
+
+buildRows();
+paintChrome();
+</script>
